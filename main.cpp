@@ -50,6 +50,28 @@ bool checkValidationLayerSupport() {
     return true;
 }
 
+bool checkExtensionSupport(int neededExtensionsCount, const char** neededExtensions) {
+    uint32_t extensionCount = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+    std::vector<VkExtensionProperties> extensions(extensionCount);
+    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+
+    for (int i = 0; i < neededExtensionsCount; i++) {
+        bool extensionFound = false;
+        for (const auto& extension : extensions) {
+            if (strcmp(neededExtensions[i], extension.extensionName) == 0) {
+                extensionFound = true;
+                break;
+            }
+        }
+        if (!extensionFound) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 class HelloTriangleApplication {
   public:
     void run() {
@@ -91,22 +113,12 @@ class HelloTriangleApplication {
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
         createInfo.pApplicationInfo = &appInfo;
 
-        uint32_t extensionCount = 0;
-        std::vector<VkExtensionProperties> extensions(extensionCount);
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-
-        std::cout << "available extensions:\n";
-
-        for (const auto& extension : extensions) {
-            std::cout << '\t' << extension.extensionName << '\n';
-        }
-
-        //TODO: Try to create a function that checks if all of the extensions returned by glfwGetRequiredInstanceExtensions are included in the supported extensions list.
-
         uint32_t glfwExtensionCount = 0;
         const char** glfwExtensions;
-
         glfwExtensions = glfwGetRequiredInstanceExtensions((&glfwExtensionCount));
+        if (!checkExtensionSupport(glfwExtensionCount, glfwExtensions)) {
+            throw std::runtime_error("not all extensions are supported");
+        }
 
         createInfo.enabledExtensionCount = glfwExtensionCount;
         createInfo.ppEnabledExtensionNames = glfwExtensions;
