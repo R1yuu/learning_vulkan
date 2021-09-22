@@ -32,7 +32,7 @@ struct QueueFamilyIndices {
     bool isComplete() { return graphicsFamily.has_value(); }
 };
 
-uint32_t findQueueFamilies(VkPhysicalDevice device) {
+QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device) {
     QueueFamilyIndices indices;
 
     uint32_t queueFamilyCount = 0;
@@ -56,6 +56,24 @@ uint32_t findQueueFamilies(VkPhysicalDevice device) {
     }
 
     return indices;
+}
+
+bool isDeviceSuitable(VkPhysicalDevice device) {
+    // TODO: Ranking of Devices and selecting best
+    // TODO:
+    // https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Physical_devices_and_queue_families
+
+    /*
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+     */
+
+    QueueFamilyIndices indices = findQueueFamilies(device);
+
+    return indices.isComplete();
 }
 
 bool checkValidationLayerSupport() {
@@ -166,11 +184,49 @@ class HelloTriangleApplication {
         createInstance();
         setupDebugMessenger();
         pickPhysicalDevice();
+        createLogicalDevice();
+    }
+
+    void createLogicalDevice() {
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+        queueCreateInfo.queueCount = 1;
+        float queuePriority = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        VkPhysicalDeviceFeatures deviceFeatures{};
+
+        VkDeviceCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        createInfo.pQueueCreateInfos = &queueCreateInfo;
+        createInfo.queueCreateInfoCount = 1;
+
+        createInfo.pEnabledFeatures = &deviceFeatures;
+
+        createInfo.enabledExtensionCount = 0;
+
+        if (enableValidationLayers) {
+            createInfo.enabledLayerCount =
+                static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+        } else {
+            createInfo.enabledLayerCount = 0;
+        }
+
+        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) !=
+            VK_SUCCESS) {
+            throw std::runtime_error("failed to create logical device!");
+        }
+
+        vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0,
+                         &graphicsQueue);
     }
 
     void pickPhysicalDevice() {
-        VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-
+        physicalDevice = VK_NULL_HANDLE;
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
         if (deviceCount == 0) {
@@ -191,24 +247,6 @@ class HelloTriangleApplication {
         if (physicalDevice == VK_NULL_HANDLE) {
             throw std::runtime_error("failed to find a suitable GPU!");
         }
-    }
-
-    bool isDeviceSuitable(VkPhysicalDevice device) {
-        // TODO: Ranking of Devices and selecting best
-        // TODO:
-        // https://vulkan-tutorial.com/Drawing_a_triangle/Setup/Physical_devices_and_queue_families
-
-        /*
-        VkPhysicalDeviceProperties deviceProperties;
-        vkGetPhysicalDeviceProperties(device, &deviceProperties);
-
-        VkPhysicalDeviceFeatures deviceFeatures;
-        vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
-         */
-
-        QueueFamilyIndices indices = findQueueFamilies(device);
-
-        return indices.isComplete();
     }
 
     void populateDebugMessengerCreateInfo(
@@ -304,6 +342,8 @@ class HelloTriangleApplication {
     }
 
     void cleanup() {
+        vkDestroyDevice(device, nullptr);
+
         if (enableValidationLayers) {
             DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
         }
@@ -318,6 +358,10 @@ class HelloTriangleApplication {
     GLFWwindow* window;
     VkInstance instance;
     VkDebugUtilsMessengerEXT debugMessenger;
+    VkSurfaceKHR surface;
+    VkPhysicalDevice physicalDevice;
+    VkDevice device;
+    VkQueue graphicsQueue;
 };
 
 int main() {
